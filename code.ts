@@ -6,15 +6,18 @@ enum sortMethods {
   layerindex,
   horizontal,
   vertical,
-  horizontallygrouped}
-const selectedSortMethod = sortMethods.horizontallygrouped
+  intuitive
+}
+
+// Choose which method to sort by
+const selectedSortMethod = sortMethods.intuitive
 
 function main() {
   let pagecount = 1
   let pageNumberNodes = []
   const selectedNodes = [...figma.currentPage.selection]
 
-// Error Handling
+  // Error Handling
   if (selectedNodes.length < 1) {
     figma.closePlugin("Please select 1 or more layers.")
     return
@@ -28,10 +31,11 @@ function main() {
     return
   }
 
+  // Sort nodes with chosen method
   const sortedNodes = sortNodes(selectedNodes, selectedSortMethod)
 
+  // Loop through and add page numbers
   sortedNodes.forEach((node) => {
-    console.log("height", node.height);
     if (node.type === "FRAME"){
       const existingPageNumber = node.findOne(node => node.type === "TEXT" && node.name === "Pagenumber")
       let currentPageNr: any
@@ -75,7 +79,65 @@ function atLeastOneFrameInSelection(selection) {
   return false;
 }
 
-function sortNodes(nodes, sorting = sortMethods.horizontallygrouped) {
+function shouldGroupVertically (horizontallyGroupedArray) {
+  if (horizontallyGroupedArray.length <= 1){
+    return false
+  }
+  else {
+     const horizontaldistance = horizontallyGroupedArray[0][1].x - horizontallyGroupedArray[0][0].x
+     const verticaldistance = horizontallyGroupedArray[1][0].y - horizontallyGroupedArray[0][0].y
+     if (horizontaldistance > verticaldistance) {
+       return true
+     }
+  }
+  return false
+}
+
+function groupSortByDirection(nodes, direction = "horizontal") {
+  let groupedArray = []
+  let currentGroup = []
+  let positionalOffset = 0
+  let firstsort = "y" 
+  let secondsort = "x" 
+
+  if (direction === "horizontal") {
+    positionalOffset = nodes[0].height
+  }
+  else if (direction === "vertical") {
+    positionalOffset = nodes[0].width
+    firstsort = "x" 
+    secondsort = "y" 
+  }
+
+  //Sort using first method
+  nodes.sort((a, b) => a[firstsort] - b[firstsort])
+
+  //Check position of first node after sorting
+  let currentPosition = nodes[0][firstsort] + positionalOffset;
+  
+  // Loop through the sorted nodes
+  nodes.forEach(function (node, index) {
+    // If we've moved too far we push current group into the grouped array and create a new current group
+    if (node[firstsort] > currentPosition) {
+      groupedArray.push([...currentGroup]);
+      currentGroup = []
+      currentPosition = node[firstsort] + positionalOffset
+    }
+    // Push the node into the current group
+    currentGroup.push(node)
+    // If it's the last item we also push the current group into the group array
+    if (index === nodes.length-1) {
+      groupedArray.push([...currentGroup]);
+    }
+  });
+  // Sort every group horizontally
+  groupedArray.forEach(function(arraygroup) {
+    arraygroup.sort((a, b) => a[secondsort] - b[secondsort])
+  });
+  return groupedArray
+}
+
+function sortNodes(nodes, sorting = selectedSortMethod) {
 
   if (sorting === sortMethods.layerindex) {
     console.log("layer index sorting")
@@ -89,37 +151,21 @@ function sortNodes(nodes, sorting = sortMethods.horizontallygrouped) {
     console.log("vertical sorting")
     nodes.sort((a, b) => a.y - b.y)
   }
-  else if (sorting === sortMethods.horizontallygrouped) {
-    console.log("horizontallygrouped sorting")
-    // Group the frames vertically and then sorts them horizontally
-    // Uses the first frames height as offset in case they're not perfectly aligned
-    nodes.sort((a, b) => a.y - b.y)
-    const positionalOffset = nodes[0].height
-    let groupedArray = []
-    let currentGroup = []
-    let currentPosition = nodes[0].y + positionalOffset;
+  else if (sorting === sortMethods.intuitive) {
+    console.log("intuitive sorting")
+   
+    const horizontallyGroupedArray = groupSortByDirection(nodes, "horizontal")
 
-    nodes.forEach(function (node, index) {
-      // If we've moved too far we push current group into the grouped array and create a new current group
-      if (node.y > currentPosition) {
-        groupedArray.push([...currentGroup]);
-        currentGroup = []
-        currentPosition = node.y + positionalOffset
-      }
-      // Push the node into the current group
-      currentGroup.push(node)
-      // If it's the last item we also push the current group into the group array
-      if (index === nodes.length-1) {
-        groupedArray.push([...currentGroup]);
-        console.log("hit last");
-      }
-    });
-    // Sort every group horizontally
-    groupedArray.forEach(function(arraygroup) {
-      arraygroup.sort((a, b) => a.x - b.x)
-    });
-    // Return a flattened version of the grouped array
-    nodes = [].concat(...groupedArray);
+    if (shouldGroupVertically(horizontallyGroupedArray)){
+      console.log("grouped vertical sort")
+      const verticallyGroupedArray = groupSortByDirection(nodes, "vertical")
+      nodes = [].concat(...verticallyGroupedArray);
+    }
+    else {
+      console.log("grouped horizontal sort")
+      nodes = [].concat(...horizontallyGroupedArray);
+    }
+
   }
   else {
     console.log("no sorting")
