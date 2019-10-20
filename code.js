@@ -71,6 +71,9 @@ function shouldGroupVertically(horizontallyGroupedArray) {
     if (horizontallyGroupedArray.length <= 1) {
         return false;
     }
+    if (horizontallyGroupedArray[0].length <= 1) {
+        return true;
+    }
     else {
         const horizontaldistance = horizontallyGroupedArray[0][1].x - horizontallyGroupedArray[0][0].x;
         const verticaldistance = horizontallyGroupedArray[1][0].y - horizontallyGroupedArray[0][0].y;
